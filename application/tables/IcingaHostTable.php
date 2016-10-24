@@ -3,12 +3,14 @@
 namespace Icinga\Module\Director\Tables;
 
 use Icinga\Data\Limitable;
-use Icinga\Module\Director\Web\Table\IcingaObjectTable;
+use Icinga\Module\Director\Web\Table\QuickTable;
 
-class IcingaHostTable extends IcingaObjectTable
+class IcingaHostTable extends QuickTable
 {
     protected $searchColumns = array(
         'host',
+        'address',
+        'display_name'
     );
 
     public function getColumns()
@@ -20,16 +22,19 @@ class IcingaHostTable extends IcingaObjectTable
         }
 
         return array(
-            'id'          => 'h.id',
-            'host'        => 'h.object_name',
-            'object_type' => 'h.object_type',
-            'address'     => 'h.address',
-            'zone'        => 'z.object_name',
-            'parents'     => $parents,
+            'id'           => 'h.id',
+            'host'         => 'h.object_name',
+            'object_type'  => 'h.object_type',
+            'address'      => 'h.address',
+            'display_name' => 'h.address',
+            'zone'         => 'z.object_name',
+            'cnt_child_hosts' => "SUM(CASE WHEN ph.object_type = 'object' THEN 1 ELSE 0 END)",
+            'cnt_child_templates' => "SUM(CASE WHEN ph.object_type = 'template' THEN 1 ELSE 0 END)",
+            'parents'      => $parents,
         );
     }
 
-    protected function getActionUrl($row)
+        protected function getActionUrl($row)
     {
         return $this->url('director/host', array('name' => $row->host));
     }
@@ -48,7 +53,7 @@ class IcingaHostTable extends IcingaObjectTable
         $view = $this->view();
         return array(
             'host'    => $view->translate('Hostname'),
-            'parents' => $view->translate('Imports'),
+            'address' => $view->translate('Address'),
         );
     }
 
@@ -56,7 +61,15 @@ class IcingaHostTable extends IcingaObjectTable
     {
         $db = $this->connection()->getConnection();
         $query = $db->select()->from(
+            array('ph' => 'icinga_host'),
+            array()
+        )->joinRight(
+            array('hp' => 'icinga_host_inheritance'),
+            'hp.host_id = ph.id',
+            array()
+        )->joinRight(
             array('h' => 'icinga_host'),
+            'hp.parent_host_id = h.id',
             array()
         )->joinLeft(
             array('z' => 'icinga_zone'),
